@@ -17,6 +17,7 @@ import {
 	reduce,
 	size,
 	some,
+	isEmpty,
 } from 'lodash';
 import createSelector from 'rememo';
 
@@ -1423,7 +1424,7 @@ export function getBlocksForSerialization( state ) {
 	const isSingleEmptyFreeformBlock = (
 		blocks.length === 1 &&
 		blocks[ 0 ].name === 'core/freeform' &&
-		( _.isEmpty( blocks[ 0 ].attributes ) || blocks[ 0 ].attributes.content === '' )
+		( isEmpty( blocks[ 0 ].attributes ) || blocks[ 0 ].attributes.content === '' )
 	);
 
 	if ( isSingleEmptyFreeformBlock ) {
