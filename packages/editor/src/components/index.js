@@ -6,6 +6,7 @@ export { default as BlockAlignmentToolbar } from './block-alignment-toolbar';
 export { default as BlockControls } from './block-controls';
 export { default as BlockEdit } from './block-edit';
 export { default as BlockFormatControls } from './block-format-controls';
+export { default as BlockNavigationDropdown } from './block-navigation/dropdown';
 export { default as BlockIcon } from './block-icon';
 export { default as ColorPalette } from './color-palette';
 export { default as withColorContext } from './color-palette/with-color-context';
@@ -24,6 +25,7 @@ export { default as MediaPlaceholder } from './media-placeholder';
 export { default as MediaUpload } from './media-upload';
 export { default as URLInput } from './url-input';
 export { default as URLInputButton } from './url-input/button';
+export { default as URLPopover } from './url-popover';
 
 // Post Related Components
 export { default as AutosaveMonitor } from './autosave-monitor';

@@ -136,10 +136,23 @@ export async function newPost( { postType, enableTips = false } = {} ) {
 	}
 }
 
-export async function togglePrePublishChecks( ) {
-	await page.click( '.edit-post-more-menu' );
-	await page.waitForSelector( '.components-popover__content' );
-	await page.click( '.edit-post__pre-publish-checks' );
+/**
+ * Toggles the screen option with the given label.
+ *
+ * @param {string}   label           The label of the screen option, e.g. 'Show Tips'.
+ * @param {?boolean} shouldBeChecked If true, turns the option on. If false, off. If
+ *                                   undefined, the option will be toggled.
+ */
+export async function toggleOption( label, shouldBeChecked = undefined ) {
+	await clickOnMoreMenuItem( 'Options' );
+	const [ handle ] = await page.$x( `//label[contains(text(), "${ label }")]` );
+
+	const isChecked = await page.evaluate( ( element ) => element.control.checked, handle );
+	if ( isChecked !== shouldBeChecked ) {
+		await handle.click();
+	}
+
+	await page.click( 'button[aria-label="Close dialog"]' );
 }
 
 export async function arePrePublishChecksEnabled( ) {
@@ -147,15 +160,11 @@ export async function arePrePublishChecksEnabled( ) {
 }
 
 export async function enablePrePublishChecks( ) {
-	if ( ! await arePrePublishChecksEnabled( ) ) {
-		await togglePrePublishChecks();
-	}
+	await toggleOption( 'Enable Pre-publish Checks', true );
 }
 
 export async function disablePrePublishChecks( ) {
-	if ( await arePrePublishChecksEnabled( ) ) {
-		await togglePrePublishChecks();
-	}
+	await toggleOption( 'Enable Pre-publish Checks', false );
 }
 
 export async function setViewport( type ) {
@@ -163,9 +172,9 @@ export async function setViewport( type ) {
 		large: { width: 960, height: 700 },
 		small: { width: 600, height: 700 },
 	};
-	const currentDimmension = allowedDimensions[ type ];
-	await page.setViewport( currentDimmension );
-	await waitForPageDimensions( currentDimmension.width, currentDimmension.height );
+	const currentDimension = allowedDimensions[ type ];
+	await page.setViewport( currentDimension );
+	await waitForPageDimensions( currentDimension.width, currentDimension.height );
 }
 
 /**
@@ -259,6 +268,14 @@ export async function insertBlock( searchTerm, panelName = null ) {
 		await panelButton.click();
 	}
 	await page.click( `button[aria-label="${ searchTerm }"]` );
+	await waitForRichTextInitialization();
+}
+
+export async function convertBlock( name ) {
+	await page.mouse.move( 200, 300, { steps: 10 } );
+	await page.mouse.move( 250, 350, { steps: 10 } );
+	await page.click( '.editor-block-switcher__toggle' );
+	await page.click( `.editor-block-types-list__item[aria-label="${ name }"]` );
 	await waitForRichTextInitialization();
 }
 
@@ -410,4 +427,30 @@ export async function clickOnCloseModalButton( modalClassName ) {
 	if ( closeButton ) {
 		await page.click( closeButtonClassName );
 	}
+}
+
+/**
+ * Sets code editor content
+ * @param {string} content New code editor content.
+ *
+ * @return {Promise} Promise resolving with an array containing all blocks in the document.
+ */
+export async function setPostContent( content ) {
+	return await page.evaluate( ( _content ) => {
+		const { dispatch } = window.wp.data;
+		const blocks = wp.blocks.parse( _content );
+		dispatch( 'core/editor' ).resetBlocks( blocks );
+	}, content );
+}
+
+/**
+ * Returns an array with all blocks; Equivalent to calling wp.data.select( 'core/editor' ).getBlocks();
+ *
+ * @return {Promise} Promise resolving with an array containing all blocks in the document.
+ */
+export async function getAllBlocks() {
+	return await page.evaluate( () => {
+		const { select } = window.wp.data;
+		return select( 'core/editor' ).getBlocks();
+	} );
 }

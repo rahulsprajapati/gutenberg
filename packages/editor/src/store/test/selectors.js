@@ -13,8 +13,8 @@ import {
 	getBlockTypes,
 	getDefaultBlockName,
 	setDefaultBlockName,
-	getUnknownTypeHandlerName,
-	setUnknownTypeHandlerName,
+	getFreeformContentHandlerName,
+	setFreeformContentHandlerName,
 } from '@wordpress/blocks';
 import { moment } from '@wordpress/date';
 import { RawHTML } from '@wordpress/element';
@@ -61,6 +61,7 @@ const {
 	getSelectedBlock,
 	getSelectedBlockClientId,
 	getBlockRootClientId,
+	getBlockHierarchyRootClientId,
 	getCurrentPostAttribute,
 	getEditedPostAttribute,
 	getAutosaveAttribute,
@@ -2228,6 +2229,51 @@ describe( 'selectors', () => {
 		} );
 	} );
 
+	describe( 'getBlockHierarchyRootClientId', () => {
+		it( 'should return the given block if the block has no parents', () => {
+			const state = {
+				editor: {
+					present: {
+						blockOrder: {},
+					},
+				},
+			};
+
+			expect( getBlockHierarchyRootClientId( state, 56 ) ).toBe( 56 );
+		} );
+
+		it( 'should return root ClientId relative the block ClientId', () => {
+			const state = {
+				editor: {
+					present: {
+						blockOrder: {
+							'': [ 123, 23 ],
+							123: [ 456, 56 ],
+						},
+					},
+				},
+			};
+
+			expect( getBlockHierarchyRootClientId( state, 56 ) ).toBe( '123' );
+		} );
+
+		it( 'should return the top level root ClientId relative the block ClientId', () => {
+			const state = {
+				editor: {
+					present: {
+						blockOrder: {
+							'': [ '123', '23' ],
+							123: [ '456', '56' ],
+							56: [ '12' ],
+						},
+					},
+				},
+			};
+
+			expect( getBlockHierarchyRootClientId( state, '12' ) ).toBe( '123' );
+		} );
+	} );
+
 	describe( 'getMultiSelectedBlockClientIds', () => {
 		it( 'should return empty if there is no multi selection', () => {
 			const state = {
@@ -3149,11 +3195,11 @@ describe( 'selectors', () => {
 	} );
 
 	describe( 'getEditedPostContent', () => {
-		let originalDefaultBlockName, originalUnknownTypeHandlerName;
+		let originalDefaultBlockName, originalFreeformContentHandlerName;
 
 		beforeAll( () => {
 			originalDefaultBlockName = getDefaultBlockName();
-			originalUnknownTypeHandlerName = getUnknownTypeHandlerName();
+			originalFreeformContentHandlerName = getFreeformContentHandlerName();
 
 			registerBlockType( 'core/default', {
 				category: 'common',
@@ -3177,12 +3223,12 @@ describe( 'selectors', () => {
 				save: ( { attributes } ) => <RawHTML>{ attributes.html }</RawHTML>,
 			} );
 			setDefaultBlockName( 'core/default' );
-			setUnknownTypeHandlerName( 'core/unknown' );
+			setFreeformContentHandlerName( 'core/unknown' );
 		} );
 
 		afterAll( () => {
 			setDefaultBlockName( originalDefaultBlockName );
-			setUnknownTypeHandlerName( originalUnknownTypeHandlerName );
+			setFreeformContentHandlerName( originalFreeformContentHandlerName );
 			getBlockTypes().forEach( ( block ) => {
 				unregisterBlockType( block.name );
 			} );
@@ -3237,7 +3283,7 @@ describe( 'selectors', () => {
 		} );
 
 		it( 'returns removep\'d serialization of blocks for single unknown', () => {
-			const unknownBlock = createBlock( getUnknownTypeHandlerName(), {
+			const unknownBlock = createBlock( getFreeformContentHandlerName(), {
 				html: '<p>foo</p>',
 			} );
 			const state = {
@@ -3261,10 +3307,10 @@ describe( 'selectors', () => {
 		} );
 
 		it( 'returns non-removep\'d serialization of blocks for multiple unknown', () => {
-			const firstUnknown = createBlock( getUnknownTypeHandlerName(), {
+			const firstUnknown = createBlock( getFreeformContentHandlerName(), {
 				html: '<p>foo</p>',
 			} );
-			const secondUnknown = createBlock( getUnknownTypeHandlerName(), {
+			const secondUnknown = createBlock( getFreeformContentHandlerName(), {
 				html: '<p>bar</p>',
 			} );
 			const state = {

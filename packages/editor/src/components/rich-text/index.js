@@ -9,6 +9,7 @@ import {
 	isNil,
 	noop,
 	isEqual,
+	omit,
 } from 'lodash';
 import memize from 'memize';
 
@@ -75,6 +76,10 @@ export class RichText extends Component {
 	constructor( { value, onReplace, multiline } ) {
 		super( ...arguments );
 
+		if ( multiline === true || multiline === 'p' || multiline === 'li' ) {
+			this.multilineTag = multiline === true ? 'p' : multiline;
+		}
+
 		this.onInit = this.onInit.bind( this );
 		this.getSettings = this.getSettings.bind( this );
 		this.onSetup = this.onSetup.bind( this );
@@ -103,7 +108,11 @@ export class RichText extends Component {
 
 		this.savedContent = value;
 		this.containerRef = createRef();
-		this.patterns = getPatterns( { onReplace, multiline } );
+		this.patterns = getPatterns( {
+			onReplace,
+			multilineTag: this.multilineTag,
+			valueToFormat: this.valueToFormat,
+		} );
 		this.enterPatterns = getBlockTransforms( 'from' ).filter( ( { type, trigger } ) =>
 			type === 'pattern' && trigger === 'enter'
 		);
@@ -140,7 +149,7 @@ export class RichText extends Component {
 	getSettings( settings ) {
 		settings = {
 			...settings,
-			forced_root_block: this.props.multiline || false,
+			forced_root_block: this.multilineTag || false,
 			// Allow TinyMCE to keep one undo level for comparing changes.
 			// Prevent it otherwise from accumulating any history.
 			custom_undo_redo_levels: 1,
@@ -228,13 +237,12 @@ export class RichText extends Component {
 	}
 
 	createRecord() {
-		const { multiline } = this.props;
 		const range = window.getSelection().getRangeAt( 0 );
 
 		return create( {
 			element: this.editableRef,
 			range,
-			multilineTag: multiline,
+			multilineTag: this.multilineTag,
 			removeNode: ( node ) => node.getAttribute( 'data-mce-bogus' ) === 'all',
 			unwrapNode: ( node ) => !! node.getAttribute( 'data-mce-bogus' ),
 			removeAttribute: ( attribute ) => attribute.indexOf( 'data-mce-' ) === 0,
@@ -243,9 +251,7 @@ export class RichText extends Component {
 	}
 
 	applyRecord( record ) {
-		const { multiline } = this.props;
-
-		apply( record, this.editableRef, multiline );
+		apply( record, this.editableRef, this.multilineTag );
 	}
 
 	isEmpty() {
@@ -612,7 +618,7 @@ export class RichText extends Component {
 				}
 			}
 
-			if ( this.props.multiline ) {
+			if ( this.multilineTag ) {
 				const record = this.getRecord();
 
 				if ( this.props.onSplit && isEmptyLine( record ) ) {
@@ -784,30 +790,30 @@ export class RichText extends Component {
 			const record = this.formatToValue( value );
 
 			if ( this.isActive() ) {
-				const length = getTextContent( prevProps.value ).length;
+				const prevRecord = this.formatToValue( prevProps.value );
+				const length = getTextContent( prevRecord ).length;
 				record.start = length;
 				record.end = length;
 			}
 
 			this.applyRecord( record );
+			this.savedContent = value;
 		}
 	}
 
 	formatToValue( value ) {
-		const { format, multiline } = this.props;
-
 		// Handle deprecated `children` and `node` sources.
 		if ( Array.isArray( value ) ) {
 			return create( {
 				html: children.toHTML( value ),
-				multilineTag: multiline,
+				multilineTag: this.multilineTag,
 			} );
 		}
 
-		if ( format === 'string' ) {
+		if ( this.props.format === 'string' ) {
 			return create( {
 				html: value,
-				multilineTag: multiline,
+				multilineTag: this.multilineTag,
 			} );
 		}
 
@@ -821,15 +827,13 @@ export class RichText extends Component {
 	}
 
 	valueToFormat( { formats, text } ) {
-		const { format, multiline } = this.props;
-
 		// Handle deprecated `children` and `node` sources.
 		if ( this.usedDeprecatedChildrenSource ) {
-			return children.fromDOM( unstableToDom( { formats, text }, multiline ).body.childNodes );
+			return children.fromDOM( unstableToDom( { formats, text }, this.multilineTag ).body.childNodes );
 		}
 
-		if ( format === 'string' ) {
-			return toHTMLString( { formats, text }, multiline );
+		if ( this.props.format === 'string' ) {
+			return toHTMLString( { formats, text }, this.multilineTag );
 		}
 
 		return { formats, text };
@@ -845,12 +849,12 @@ export class RichText extends Component {
 			inlineToolbar = false,
 			formattingControls,
 			placeholder,
-			multiline: MultilineTag,
 			keepPlaceholderOnFocus = false,
 			isSelected,
 			autocompleters,
 		} = this.props;
 
+		const MultilineTag = this.multilineTag;
 		const ariaProps = pickAriaProps( this.props );
 
 		// Generating a key that includes `tagName` ensures that if the tag
@@ -917,7 +921,7 @@ export class RichText extends Component {
 								key={ key }
 								onPaste={ this.onPaste }
 								onInput={ this.onInput }
-								multilineTag={ MultilineTag }
+								multilineTag={ this.multilineTag }
 								setRef={ this.setRef }
 							/>
 							{ isPlaceholderVisible &&
@@ -939,7 +943,8 @@ export class RichText extends Component {
 
 RichText.defaultProps = {
 	formattingControls: FORMATTING_CONTROLS.map( ( { format } ) => format ),
-	format: 'rich-text',
+	format: 'string',
+	value: '',
 };
 
 const RichTextContainer = compose( [
@@ -987,40 +992,44 @@ const RichTextContainer = compose( [
 	withSafeTimeout,
 ] )( RichText );
 
-RichTextContainer.Content = ( { value, format, tagName: Tag, multiline, ...props } ) => {
+RichTextContainer.Content = ( { value, tagName: Tag, multiline, ...props } ) => {
 	let html = value;
+	let MultilineTag;
+
+	if ( multiline === true || multiline === 'p' || multiline === 'li' ) {
+		MultilineTag = multiline === true ? 'p' : multiline;
+	}
 
 	// Handle deprecated `children` and `node` sources.
 	if ( Array.isArray( value ) ) {
 		html = children.toHTML( value );
-	} else if ( format !== 'string' ) {
-		html = toHTMLString( value, multiline );
+	}
+
+	if ( ! html && MultilineTag ) {
+		html = `<${ MultilineTag }></${ MultilineTag }>`;
 	}
 
 	const content = <RawHTML>{ html }</RawHTML>;
 
 	if ( Tag ) {
-		return <Tag { ...props }>{ content }</Tag>;
+		return <Tag { ...omit( props, [ 'format' ] ) }>{ content }</Tag>;
 	}
 
 	return content;
 };
 
-RichTextContainer.isEmpty = ( value ) => {
+RichTextContainer.isEmpty = ( value = '' ) => {
 	// Handle deprecated `children` and `node` sources.
 	if ( Array.isArray( value ) ) {
 		return ! value || value.length === 0;
 	}
 
-	if ( typeof value === 'string' ) {
-		return value.length === 0;
-	}
-
-	return isEmpty( value );
+	return value.length === 0;
 };
 
 RichTextContainer.Content.defaultProps = {
-	format: 'rich-text',
+	format: 'string',
+	value: '',
 };
 
 export default RichTextContainer;

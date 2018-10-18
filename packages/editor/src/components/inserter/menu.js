@@ -22,7 +22,7 @@ import scrollIntoView from 'dom-scroll-into-view';
  */
 import { __ } from '@wordpress/i18n';
 import { Component, findDOMNode, createRef } from '@wordpress/element';
-import { withSpokenMessages, PanelBody, IconButton } from '@wordpress/components';
+import { withSpokenMessages, PanelBody } from '@wordpress/components';
 import { getCategories, isReusableBlock } from '@wordpress/blocks';
 import { withDispatch, withSelect } from '@wordpress/data';
 import { withInstanceId, compose, withSafeTimeout } from '@wordpress/compose';
@@ -48,10 +48,12 @@ const MAX_SUGGESTED_ITEMS = 9;
 export const searchItems = ( items, searchTerm ) => {
 	const normalizedSearchTerm = normalizeTerm( searchTerm );
 	const matchSearch = ( string ) => normalizeTerm( string ).indexOf( normalizedSearchTerm ) !== -1;
+	const categories = getCategories();
 
-	return items.filter( ( item ) =>
-		matchSearch( item.title ) || some( item.keywords, matchSearch )
-	);
+	return items.filter( ( item ) => {
+		const itemCategory = find( categories, { slug: item.category } );
+		return matchSearch( item.title ) || some( item.keywords, matchSearch ) || ( itemCategory && matchSearch( itemCategory.title ) );
+	} );
 };
 
 /**
@@ -286,12 +288,12 @@ export class InserterMenu extends Component {
 							ref={ this.bindPanel( 'reusable' ) }
 						>
 							<BlockTypesList items={ reusableItems } onSelect={ onSelect } onHover={ this.onHover } />
-							<IconButton
+							<a
 								className="editor-inserter__manage-reusable-blocks"
-								icon="admin-generic"
-								label={ __( 'Manage All Reusable Blocks' ) }
 								href="edit.php?post_type=wp_block"
-							/>
+							>
+								{ __( 'Manage All Reusable Blocks' ) }
+							</a>
 						</PanelBody>
 					) }
 					{ isEmpty( suggestedItems ) && isEmpty( reusableItems ) && isEmpty( itemsPerCategory ) && (

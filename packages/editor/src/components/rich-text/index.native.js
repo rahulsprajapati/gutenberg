@@ -13,8 +13,13 @@ import {
  */
 import { Component, RawHTML } from '@wordpress/element';
 import { withInstanceId, compose } from '@wordpress/compose';
-import { toHTMLString } from '@wordpress/rich-text';
 import { Toolbar } from '@wordpress/components';
+import {
+	isEmpty,
+	create,
+	split,
+	toHTMLString,
+} from '@wordpress/rich-text';
 
 /**
  * Internal dependencies
@@ -49,8 +54,69 @@ export class RichText extends Component {
 	}
 
 	// eslint-disable-next-line no-unused-vars
-	onHTMLContentWithCursor( htmlText, cursorPosition ) {
-		// Descriptive placeholder: This logic still needs to be implemented.
+	onHTMLContentWithCursor( htmlText, start, end ) {
+		if ( ! this.props.onSplit ) {
+			// TODO: insert the \n char instead?
+			return;
+		}
+		this.splitContent( htmlText, start, end );
+	}
+
+	/*
+	 * Splits the content at the location of the selection.
+	 *
+	 * Replaces the content of the editor inside this element with the contents
+	 * before the selection. Sends the elements after the selection to the `onSplit`
+	 * handler.
+	 *
+	 */
+	splitContent( htmlText, start, end ) {
+		const { onSplit } = this.props;
+
+		if ( ! onSplit ) {
+			return;
+		}
+
+		const record = create( {
+			html: htmlText,
+			range: null,
+			multilineTag: false,
+			removeNode: null,
+			unwrapNode: null,
+			removeAttribute: null,
+			filterString: null,
+		} );
+
+		// TODO : Fix the index position in AztecNative for Android
+		let [ before, after ] = split( { start, end, ...record } );
+
+		// In case split occurs at the trailing or leading edge of the field,
+		// assume that the before/after values respectively reflect the current
+		// value. This also provides an opportunity for the parent component to
+		// determine whether the before/after value has changed using a trivial
+		//  strict equality operation.
+		if ( isEmpty( after ) ) {
+			before = record;
+		} else if ( isEmpty( before ) ) {
+			after = record;
+		}
+
+		if ( before ) {
+			before = this.valueToFormat( before );
+		}
+
+		if ( after ) {
+			after = this.valueToFormat( after );
+		}
+
+		onSplit( before, after );
+	}
+
+	valueToFormat( { formats, text } ) {
+		const value = toHTMLString( { formats, text }, this.multilineTag );
+		// remove the outer p tags
+		const returningContentWithoutParaTag = value.replace( /<p>|<\/p>/gi, '' );
+		return returningContentWithoutParaTag;
 	}
 
 	onActiveFormatsChange( formats ) {
@@ -179,7 +245,7 @@ export class RichText extends Component {
 			} ) );
 
 		// Save back to HTML from React tree
-		const html = '<' + tagName + '>' + toHTMLString( value ) + '</' + tagName + '>';
+		const html = '<' + tagName + '>' + value + '</' + tagName + '>';
 
 		return (
 			<View>
@@ -208,7 +274,7 @@ export class RichText extends Component {
 
 RichText.defaultProps = {
 	formattingControls: FORMATTING_CONTROLS.map( ( { format } ) => format ),
-	format: 'children',
+	format: 'string',
 };
 
 const RichTextContainer = compose( [
@@ -220,10 +286,6 @@ RichTextContainer.Content = ( { value, format, tagName: Tag, ...props } ) => {
 	switch ( format ) {
 		case 'string':
 			content = <RawHTML>{ value }</RawHTML>;
-			break;
-
-		case 'children':
-			content = <RawHTML>{ toHTMLString( value ) }</RawHTML>;
 			break;
 	}
 
@@ -237,7 +299,7 @@ RichTextContainer.Content = ( { value, format, tagName: Tag, ...props } ) => {
 RichTextContainer.isEmpty = isRichTextValueEmpty;
 
 RichTextContainer.Content.defaultProps = {
-	format: 'children',
+	format: 'string',
 };
 
 export default RichTextContainer;
