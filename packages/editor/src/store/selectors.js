@@ -1423,7 +1423,7 @@ export function getBlocksForSerialization( state ) {
 	// A single empty core/freeform block equivalent to an empty post.
 	const isSingleEmptyFreeformBlock = (
 		blocks.length === 1 &&
-		blocks[ 0 ].name === 'core/freeform' &&
+		blocks[ 0 ].name === getUnknownTypeHandlerName() &&
 		( isEmpty( blocks[ 0 ].attributes ) || blocks[ 0 ].attributes.content === '' )
 	);
 
